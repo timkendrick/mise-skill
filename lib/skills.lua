@@ -39,8 +39,21 @@ function M.discover(root)
     return found
 end
 
+-- same_contents(matches) -> true when every match has an identical SKILL.md, as when a
+-- repository symlinks to its own skills.
+local function same_contents(matches)
+    local first = file.read(file.join_path(matches[1].dir, "SKILL.md"))
+    for i = 2, #matches do
+        if file.read(file.join_path(matches[i].dir, "SKILL.md")) ~= first then
+            return false
+        end
+    end
+    return true
+end
+
 -- select(found, wanted) -> the skills to link. wanted is the skills tool option: nil means
--- all of them, a string means one. Unknown and ambiguous names fail.
+-- all of them, a string means one. Unknown names fail. Names shared by skills whose SKILL.md
+-- contents differ fail; identical copies resolve to the first.
 function M.select(found, wanted)
     local by_name, order = {}, {}
     for _, skill in ipairs(found) do
@@ -64,7 +77,18 @@ function M.select(found, wanted)
             for _, skill in ipairs(matches) do
                 table.insert(dirs, skill.dir)
             end
-            error("mise-skill: more than one skill is named " .. name .. ": " .. table.concat(dirs, ", "))
+            if same_contents(matches) then
+                log.debug(
+                    "mise-skill: "
+                        .. name
+                        .. " has identical copies; using "
+                        .. dirs[1]
+                        .. ", skipping "
+                        .. table.concat(dirs, ", ", 2)
+                )
+            else
+                error("mise-skill: more than one skill is named " .. name .. ": " .. table.concat(dirs, ", "))
+            end
         end
         table.insert(selected, matches[1])
     end
